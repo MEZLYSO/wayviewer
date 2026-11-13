@@ -179,22 +179,34 @@ AVPixelFormat FrameWriter::handle_buffersink_pix_fmt(const AVCodec *codec)
 
     auto in_fmt = get_input_format();
 
+    /* AVCodec.pix_fmts was removed in FFmpeg 8 (libavcodec 62); use the
+     * replacement query API there and the field on older releases. */
+#if LIBAVCODEC_VERSION_MAJOR >= 62
+    const void* configs = nullptr;
+    const AVPixelFormat* pix_fmts = nullptr;
+    if (avcodec_get_supported_config(nullptr, codec,
+            AV_CODEC_CONFIG_PIX_FORMAT, 0, &configs, nullptr) >= 0)
+        pix_fmts = static_cast<const AVPixelFormat*>(configs);
+#else
+    const AVPixelFormat* pix_fmts = codec->pix_fmts;
+#endif
+
     /* For codecs such as rawvideo no supported formats are listed */
-    if (!codec->pix_fmts)
+    if (!pix_fmts)
         return in_fmt;
 
     /* If the codec supports getting the appropriate RGB format
      * directly, we want to use it since we don't have to convert data */
-    if (is_fmt_supported(in_fmt, codec->pix_fmts))
+    if (is_fmt_supported(in_fmt, pix_fmts))
         return in_fmt;
 
     /* Choose the format supported by the codec which best approximates the
      * input fmt. */
     AVPixelFormat best_format = AV_PIX_FMT_NONE;
-    for (int i = 0; codec->pix_fmts[i] != AV_PIX_FMT_NONE; i++) {
+    for (int i = 0; pix_fmts[i] != AV_PIX_FMT_NONE; i++) {
         int loss = 0;
         best_format = av_find_best_pix_fmt_of_2(best_format,
-            codec->pix_fmts[i], in_fmt, false, &loss);
+            pix_fmts[i], in_fmt, false, &loss);
     }
     return best_format;
 }
@@ -416,9 +428,16 @@ void FrameWriter::init_video_filters(const AVCodec *codec)
     this->videoCodecCtx->height = filter_output->h;
     this->videoCodecCtx->pix_fmt = (AVPixelFormat)filter_output->format;
     this->videoCodecCtx->time_base = filter_output->time_base;
+#if LIBAVFILTER_VERSION_MAJOR >= 11
+    /* AVFilterLink.frame_rate was removed in FFmpeg 8 (libavfilter 11). */
+    this->videoCodecCtx->framerate = params.framerate > 0
+        ? AVRational{params.framerate, 1}
+        : av_buffersink_get_frame_rate(this->videoFilterSinkCtx);
+#else
     this->videoCodecCtx->framerate = params.framerate > 0
         ? AVRational{params.framerate, 1}
         : filter_output->frame_rate;
+#endif
     this->videoCodecCtx->sample_aspect_ratio = filter_output->sample_aspect_ratio;
 
     this->hw_frame_context = av_buffersink_get_hw_frames_ctx(
@@ -491,7 +510,13 @@ void FrameWriter::init_video_stream()
     }
 }
 
-static int write_to_clients(void* opaque, uint8_t* buf, int buf_size)
+static int write_to_clients(void* opaque,
+#if LIBAVFORMAT_VERSION_MAJOR >= 62
+    const uint8_t* buf,
+#else
+    uint8_t* buf,
+#endif
+    int buf_size)
 {
     auto* server = static_cast<TcpServer*>(opaque);
     if (!server || !server->write(buf, static_cast<size_t>(buf_size)))

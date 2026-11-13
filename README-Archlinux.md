@@ -192,6 +192,34 @@ ss -ltnp | grep 12401    # TCP (solo si HOST=0.0.0.0)
 
 ## Problemas comunes
 
+**El build falla con errores de `AVCodec.pix_fmts`, `AVFilterLink.frame_rate` o `avio_alloc_context`**
+Eso solo ocurre con código antiguo: `src/frame-writer.cpp` ya detecta la
+versión y compila con FFmpeg 6, 7 y 8. Verifica que estás en el checkout
+actualizado y reconstruye desde cero:
+
+```bash
+./build-cachyos.sh --clean
+```
+
+Comprueba contra qué versión quedó enlazado:
+
+```bash
+ldd build/wayviewer | grep libavcodec
+```
+
+Si por algún motivo necesitas FFmpeg 6 en paralelo (sin tocar el del sistema),
+el AUR `ffmpeg6.1` se instala aparte en `/usr/lib/ffmpeg6.1`:
+
+```bash
+yay -S ffmpeg6.1      # o: paru -S ffmpeg6.1
+PKG_CONFIG_PATH=/usr/lib/ffmpeg6.1/pkgconfig ./build-cachyos.sh --clean
+```
+
+No hagas downgrade del paquete `ffmpeg` oficial: romperías las aplicaciones
+enlazadas contra `libavcodec.so.62`. Si aun así lo quieres, usa `downgrade`
+(AUR) y añade `IgnorePkg = ffmpeg` en `/etc/pacman.conf`; para revertir,
+quita esa línea y ejecuta `sudo pacman -Syu ffmpeg`.
+
 **`compositor doesn't support wlr-screencopy-unstable-v1`**
 Estás en GNOME, KDE o un compositor sin `wlr-screencopy`. Usa sway, dwl,
 Hyprland u otro compositor `wlroots`.
