@@ -1,0 +1,99 @@
+.Dd $Mdocdate: July 30 2022 $
+.Dt WAYVIEWER 1
+.Os
+.Sh NAME
+.Nm wayviewer
+.Nd stream the screen of wlroots-based compositors over TCP
+.Sh SYNOPSIS
+.Nm wayviewer
+.Op Fl -port Ar port
+.Op Fl -host Ar address
+.Sh DESCRIPTION
+.Nm
+streams the screen of a Wayland compositor over TCP as MPEG-TS.
+It captures the whole first output using
+.Sy wlr-screencopy
+and encodes it with
+.Xr ffmpeg 1
+using low-latency x264 defaults.
+.Pp
+It can also expose the same MPEG-TS byte stream on a Unix stream socket by
+setting
+.Ev WAYVIEWER_UNIX_SOCKET .
+This is intended for a local Python process that forwards the stream or
+renders it in a GUI.
+.Pp
+This program only streams video.
+It does not record to files and does not
+capture audio.
+.Pp
+The server listens on TCP port 1234 and on all interfaces by default.
+Multiple clients can connect to the same port at the same time.
+A slow or disconnected client does not stop the others.
+Use
+.Ql Ctrl+C
+to stop it.
+.Pp
+The options are as follows:
+.Bl -tag -width Ds
+.It Fl -port Ar port
+TCP port to listen on.
+The default is 1234.
+.It Fl -host Ar address
+Address to bind.
+The default is 0.0.0.0, which listens on all interfaces.
+.It Fl h , -help
+Print the help screen.
+.El
+.Sh ENVIRONMENT
+.Bl -tag -width Ds
+.It Ev WAYVIEWER_FPS
+Capture and encode frame rate.
+The default is 30.
+.It Ev WAYVIEWER_BITRATE
+Encoder bitrate cap in kbit/s.
+The default is 5000.
+.It Ev WAYVIEWER_GOP
+Keyframe interval in frames.
+The default is the value of
+.Ev WAYVIEWER_FPS ,
+which gives one keyframe per second.
+.It Ev WAYVIEWER_CRF
+x264/x265 quality value.
+Lower values give better quality and a higher bitrate.
+The default is 23.
+.It Ev WAYVIEWER_PRESET
+x264/x265 preset.
+The default is
+.Ql ultrafast ,
+which uses the least CPU.
+.It Ev WAYVIEWER_THREADS
+Number of encoder threads.
+The default is 0, which selects half of the logical CPUs, capped at 8.
+.It Ev WAYVIEWER_UNIX_SOCKET
+Also listen for local clients on the given Unix stream socket path.
+The socket file is removed when the server exits.
+.El
+.Sh EXAMPLES
+Start the server with the default port:
+.Dl $ wayviewer
+.Pp
+Use a custom port:
+.Dl $ wayviewer --port 9000
+.Pp
+Bind only to one address:
+.Dl $ wayviewer --host 192.168.1.10 --port 9000
+.Pp
+Also serve a local Python process on a Unix socket:
+.Dl $ WAYVIEWER_UNIX_SOCKET=/run/user/1000/wayviewer.sock wayviewer
+.Pp
+On another device, connect to the server's IP address with
+.Dl $ ffplay -probesize 65536 -analyzeduration 100000 \
+    -fflags nobuffer -flags low_delay -framedrop tcp://192.168.1.10:9000
+.Pp
+The probe options make playback start immediately.
+Without them, the MPEG-TS demuxer spends five seconds in
+.Fn avformat_find_stream_info
+before showing the first frame.
+.Sh SEE ALSO
+.Xr ffmpeg 1

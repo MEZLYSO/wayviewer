@@ -1,0 +1,6 @@
+#pragma once
+
+#define DEFAULT_CODEC "@default_codec@"
+#define DEFAULT_PIX_FMT "@default_pix_fmt@"
+#mesondefine HAVE_OPENCL
+#mesondefine HAVE_LIBAVDEVICE

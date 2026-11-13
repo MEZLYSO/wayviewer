@@ -1,0 +1,2 @@
+option('default_codec', type: 'string', value: 'libx264', description: 'Codec that will be used by default')
+option('default_pixel_format', type: 'string', value: '', description: 'Pixel format that will be used by default')
